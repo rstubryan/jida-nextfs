@@ -1,4 +1,4 @@
-name: Vercel CI/CD Pipeline Development Deployment
+name: Vercel CI/CD Pipeline Development
 
 env:
   VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
