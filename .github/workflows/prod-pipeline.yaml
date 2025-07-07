@@ -10,8 +10,38 @@ on:
       - master
 
 jobs:
-  Deploy-Production:
+  dependency-check:
+    name: Dependency Scan with Trivy
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          format: 'table'
+          output: 'trivy-results.txt'
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+        env:
+          TRIVY_DISABLE_VEX_NOTICE: true
+
+      - name: Publish Trivy Output to Summary
+        run: |
+          echo "### Security Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "<details><summary>Click to expand</summary>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat trivy-results.txt >> $GITHUB_STEP_SUMMARY || echo "No vulnerabilities found or scan failed" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "</details>" >> $GITHUB_STEP_SUMMARY
+
+  build-and-deploy:
+    name: Deploy to Vercel Production
+    runs-on: ubuntu-latest
+    needs: dependency-check
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
