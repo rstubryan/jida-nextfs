@@ -1,109 +1,129 @@
 // app/api/blogs/route.ts
 import { NextRequest, NextResponse } from "next/server";
-
-// Static data store for blogs
-let blogs = [
-  {
-    id: "1",
-    title: "Getting Started with Next.js",
-    content:
-      "Next.js is a React framework that enables server-side rendering and more...",
-    author: "John Doe",
-    date: "2023-10-15",
-  },
-  {
-    id: "2",
-    title: "Mastering Tailwind CSS",
-    content:
-      "Tailwind CSS is a utility-first CSS framework that allows you to build custom designs...",
-    author: "Jane Smith",
-    date: "2023-09-22",
-  },
-  {
-    id: "3",
-    title: "Understanding TypeScript",
-    content:
-      "TypeScript is a strongly typed programming language that builds on JavaScript...",
-    author: "Alex Johnson",
-    date: "2023-08-30",
-  },
-];
+import { prisma } from "@/lib/prisma";
+import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
 
 // GET all blogs
 export async function GET() {
-  return NextResponse.json(blogs);
+  try {
+    const blogs = await prisma.blogPost.findMany({
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+    return NextResponse.json(blogs);
+  } catch (error) {
+    console.error("Failed to fetch blogs:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch blogs" },
+      { status: 500 },
+    );
+  }
 }
 
 // POST create a new blog
 export async function POST(request: NextRequest) {
-  const body = await request.json();
+  try {
+    const body = await request.json();
 
-  // Validate required fields
-  if (!body.title || !body.content || !body.author) {
+    // Validate required fields
+    if (!body.name || !body.slug) {
+      return NextResponse.json(
+        { error: "Name and slug are required" },
+        { status: 400 },
+      );
+    }
+
+    // Create new blog in database
+    const newBlog = await prisma.blogPost.create({
+      data: {
+        name: body.name,
+        slug: body.slug,
+        description: body.description || null,
+        content: body.content || null,
+      },
+    });
+
+    return NextResponse.json(newBlog, { status: 201 });
+  } catch (error) {
+    console.error("Failed to create blog:", error);
     return NextResponse.json(
-      { error: "Title, content, and author are required" },
-      { status: 400 },
+      { error: "Failed to create blog" },
+      { status: 500 },
     );
   }
-
-  // Create new blog with generated ID
-  const newBlog = {
-    id: Date.now().toString(),
-    title: body.title,
-    content: body.content,
-    author: body.author,
-    date: new Date().toISOString().split("T")[0],
-  };
-
-  blogs.push(newBlog);
-  return NextResponse.json(newBlog, { status: 201 });
 }
 
 // PUT update a blog
 export async function PUT(request: NextRequest) {
-  const body = await request.json();
+  try {
+    const body = await request.json();
 
-  // Validate required fields
-  if (!body.id || !body.title || !body.content || !body.author) {
+    // Validate required fields
+    if (!body.id || !body.name || !body.slug) {
+      return NextResponse.json(
+        { error: "ID, name, and slug are required" },
+        { status: 400 },
+      );
+    }
+
+    // Find and update blog by ID
+    const updatedBlog = await prisma.blogPost.update({
+      where: { id: body.id },
+      data: {
+        name: body.name,
+        slug: body.slug,
+        description: body.description,
+        content: body.content,
+      },
+    });
+
+    return NextResponse.json(updatedBlog);
+  } catch (error) {
+    console.error("Failed to update blog:", error);
+
+    if (
+      error instanceof PrismaClientKnownRequestError &&
+      error.code === "P2025"
+    ) {
+      return NextResponse.json({ error: "Blog not found" }, { status: 404 });
+    }
+
     return NextResponse.json(
-      { error: "ID, title, content, and author are required" },
-      { status: 400 },
+      { error: "Failed to update blog" },
+      { status: 500 },
     );
   }
-
-  // Find blog by ID
-  const index = blogs.findIndex((blog) => blog.id === body.id);
-
-  if (index === -1) {
-    return NextResponse.json({ error: "Blog not found" }, { status: 404 });
-  }
-
-  // Update blog
-  blogs[index] = {
-    ...blogs[index],
-    title: body.title,
-    content: body.content,
-    author: body.author,
-  };
-
-  return NextResponse.json(blogs[index]);
 }
 
 // DELETE a blog
 export async function DELETE(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const id = searchParams.get("id");
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
 
-  if (!id) {
-    return NextResponse.json({ error: "ID is required" }, { status: 400 });
+    if (!id) {
+      return NextResponse.json({ error: "ID is required" }, { status: 400 });
+    }
+
+    await prisma.blogPost.delete({
+      where: { id },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Failed to delete blog:", error);
+
+    if (
+      error instanceof PrismaClientKnownRequestError &&
+      error.code === "P2025"
+    ) {
+      return NextResponse.json({ error: "Blog not found" }, { status: 404 });
+    }
+
+    return NextResponse.json(
+      { error: "Failed to delete blog" },
+      { status: 500 },
+    );
   }
-
-  const initialLength = blogs.length;
-  blogs = blogs.filter((blog) => blog.id !== id);
-
-  if (blogs.length === initialLength) {
-    return NextResponse.json({ error: "Blog not found" }, { status: 404 });
-  }
-
-  return NextResponse.json({ success: true });
 }

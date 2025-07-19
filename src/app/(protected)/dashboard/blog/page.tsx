@@ -1,4 +1,3 @@
-// app/(protected)/dashboard/blog/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -31,29 +30,33 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { format } from "date-fns";
 
-interface Blog {
+interface BlogPost {
   id: string;
-  title: string;
-  content: string;
-  author: string;
-  date: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  content: string | null;
+  createdAt: string;
+  updatedAt: string;
   excerpt?: string;
   readTime?: string;
   category?: string;
 }
 
 export default function BlogPage() {
-  const [blogs, setBlogs] = useState<Blog[]>([]);
+  const [blogs, setBlogs] = useState<BlogPost[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [currentBlog, setCurrentBlog] = useState<Blog | null>(null);
+  const [currentBlog, setCurrentBlog] = useState<BlogPost | null>(null);
   const [formData, setFormData] = useState({
-    title: "",
+    name: "",
+    slug: "",
+    description: "",
     content: "",
-    author: "",
   });
 
   // Fetch all blogs
@@ -65,10 +68,14 @@ export default function BlogPage() {
 
       const data = await response.json();
       // Add excerpt and readTime properties
-      const processedData = data.map((blog: Blog) => ({
+      const processedData = data.map((blog: BlogPost) => ({
         ...blog,
-        excerpt: blog.content.substring(0, 100) + "...",
-        readTime: `${Math.ceil(blog.content.length / 1000)} min read`,
+        excerpt: blog.content
+          ? blog.content.substring(0, 100) + "..."
+          : blog.description,
+        readTime: blog.content
+          ? `${Math.ceil((blog.content.length || 0) / 1000)} min read`
+          : "1 min read",
         category: "Development",
       }));
 
@@ -92,7 +99,7 @@ export default function BlogPage() {
       if (!response.ok) throw new Error("Failed to create blog");
 
       setIsAddDialogOpen(false);
-      setFormData({ title: "", content: "", author: "" });
+      setFormData({ name: "", slug: "", description: "", content: "" });
       console.log("Blog created successfully");
       fetchBlogs();
     } catch (error) {
@@ -115,7 +122,7 @@ export default function BlogPage() {
 
       setIsEditDialogOpen(false);
       setCurrentBlog(null);
-      setFormData({ title: "", content: "", author: "" });
+      setFormData({ name: "", slug: "", description: "", content: "" });
       console.log("Blog updated successfully");
       fetchBlogs();
     } catch (error) {
@@ -156,19 +163,38 @@ export default function BlogPage() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  // Generate slug from name
+  const generateSlug = (name: string) => {
+    return name
+      .toLowerCase()
+      .replace(/[^\w\s]/gi, "")
+      .replace(/\s+/g, "-");
+  };
+
+  // Handle name change to auto-generate slug
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const name = e.target.value;
+    setFormData((prev) => ({
+      ...prev,
+      name,
+      slug: generateSlug(name),
+    }));
+  };
+
   // Open edit dialog with blog data
-  const handleEditClick = (blog: Blog) => {
+  const handleEditClick = (blog: BlogPost) => {
     setCurrentBlog(blog);
     setFormData({
-      title: blog.title,
-      content: blog.content,
-      author: blog.author,
+      name: blog.name,
+      slug: blog.slug,
+      description: blog.description || "",
+      content: blog.content || "",
     });
     setIsEditDialogOpen(true);
   };
 
   // Open delete confirmation dialog
-  const handleDeleteClick = (blog: Blog) => {
+  const handleDeleteClick = (blog: BlogPost) => {
     setCurrentBlog(blog);
     setIsDeleteDialogOpen(true);
   };
@@ -207,10 +233,10 @@ export default function BlogPage() {
                     <Badge variant="outline">{blog.category}</Badge>
                     <div className="flex items-center text-sm text-muted-foreground">
                       <CalendarIcon className="mr-1 size-4" />
-                      {blog.date}
+                      {format(new Date(blog.createdAt), "MMM dd, yyyy")}
                     </div>
                   </div>
-                  <CardTitle className="text-xl">{blog.title}</CardTitle>
+                  <CardTitle className="text-xl">{blog.name}</CardTitle>
                 </CardHeader>
                 <CardContent className="pb-3">
                   <p className="text-muted-foreground">{blog.excerpt}</p>
@@ -236,7 +262,7 @@ export default function BlogPage() {
                       <Trash2 className="size-4" />
                     </Button>
                     <Button asChild variant="ghost" size="sm">
-                      <Link href={`/dashboard/blog/${blog.id}`}>
+                      <Link href={`/dashboard/blog/${blog.slug}`}>
                         Read more <ArrowRight className="ml-1 size-4" />
                       </Link>
                     </Button>
@@ -259,13 +285,34 @@ export default function BlogPage() {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="title">Title</Label>
+              <Label htmlFor="name">Title</Label>
               <Input
-                id="title"
-                name="title"
-                value={formData.title}
-                onChange={handleInputChange}
+                id="name"
+                name="name"
+                value={formData.name}
+                onChange={handleNameChange}
                 placeholder="Enter blog title"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="slug">Slug</Label>
+              <Input
+                id="slug"
+                name="slug"
+                value={formData.slug}
+                onChange={handleInputChange}
+                placeholder="url-friendly-slug"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                name="description"
+                value={formData.description}
+                onChange={handleInputChange}
+                placeholder="Short description of your blog post"
+                className="min-h-[80px]"
               />
             </div>
             <div className="grid gap-2">
@@ -277,16 +324,6 @@ export default function BlogPage() {
                 onChange={handleInputChange}
                 placeholder="Write your blog content here"
                 className="min-h-[150px]"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="author">Author</Label>
-              <Input
-                id="author"
-                name="author"
-                value={formData.author}
-                onChange={handleInputChange}
-                placeholder="Enter author name"
               />
             </div>
           </div>
@@ -310,12 +347,31 @@ export default function BlogPage() {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="edit-title">Title</Label>
+              <Label htmlFor="edit-name">Title</Label>
               <Input
-                id="edit-title"
-                name="title"
-                value={formData.title}
+                id="edit-name"
+                name="name"
+                value={formData.name}
+                onChange={handleNameChange}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-slug">Slug</Label>
+              <Input
+                id="edit-slug"
+                name="slug"
+                value={formData.slug}
                 onChange={handleInputChange}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-description">Description</Label>
+              <Textarea
+                id="edit-description"
+                name="description"
+                value={formData.description}
+                onChange={handleInputChange}
+                className="min-h-[80px]"
               />
             </div>
             <div className="grid gap-2">
@@ -326,15 +382,6 @@ export default function BlogPage() {
                 value={formData.content}
                 onChange={handleInputChange}
                 className="min-h-[150px]"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit-author">Author</Label>
-              <Input
-                id="edit-author"
-                name="author"
-                value={formData.author}
-                onChange={handleInputChange}
               />
             </div>
           </div>
