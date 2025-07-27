@@ -1,6 +1,6 @@
 import { GalleryVerticalEnd } from "lucide-react";
 
-import { LoginForm } from "@/components/molecules/login-form";
+import { LoginForm } from "@/components/molecules/auth/login-form";
 
 export default function LoginPage() {
   return (

@@ -1,6 +1,6 @@
 import { GalleryVerticalEnd } from "lucide-react";
 
-import { RegisterForm } from "@/components/molecules/register-form";
+import { RegisterForm } from "@/components/molecules/auth/register-form";
 
 export default function RegisterPage() {
   return (
